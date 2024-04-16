@@ -1,10 +1,10 @@
 abstract type Equation end
-@enum Operation begin
-  add
-  sub
-  mult
-  div
-end
+# @enum Operation begin
+#   add
+#   sub
+#   mult
+#   div
+# end
 
 struct Constant <: Equation
   value::Float64
@@ -16,7 +16,7 @@ end
 
 struct OpEquation <: Equation
   left::Equation
-  op::Operation
+  op::Function
   right::Equation
 end
 
@@ -35,11 +35,11 @@ const precedence::Dict{Char, Int8} = Dict(
   '-' => 1
 )
 
-const operation::Dict{Char, Operation} = Dict(
-  '*' => mult,
-  '/' => div,
-  '+' => add,
-  '-' => sub
+const operation::Dict{Char, Function} = Dict(
+  '*' => function mult(x,y) return x*y end,
+  '/' => function div(x,y) return x/y end,
+  '+' => function add(x,y) return x+y end,
+  '-' => function sub(x,y) return x-y end
 )
 
 # returns index of operation with higher precedence, returns -1 if there are no operations
@@ -57,11 +57,28 @@ function lowestPrecedence(eq_str::String)
   return index
 end
 
+# replace leftmost EmptyEquation with group
+function attachGroup(group::Equation, other_eq::OpEquation, right=false)
+  if right
+    recur = attachGroup(group, other_eq.right)
+    return OpEquation(other_eq.left, other_eq.op, recur)
+  else
+    recur = attachGroup(group, other_eq.left)
+    return OpEquation(recur, other_eq.op, other_eq.right)
+  end
+end
+
+function attachGroup(group::Equation, other_eq::EmptyEquation)
+  return group
+end
+
 # turns string into series of Equations
 function parseEquation(eq_str::String)
   if eq_str == ""
     return EmptyEquation()
   end
+
+  # grouping
   open = findfirst(==('('), eq_str)
   if !isnothing(open)
     num_open = 1
@@ -91,10 +108,10 @@ function parseEquation(eq_str::String)
     inside = GroupEquation(parseEquation(eq_str[open+1:close-1]))
     res = inside
     if !isnothing(left)
-      res = OpEquation(left.left, left.op, res)
+      res = attachGroup(res, left, true)
     end
     if !isnothing(right)
-      res = OpEquation(res, right.op, right.right)
+      res = attachGroup(res, right)
     end
     return res
   end
@@ -120,12 +137,14 @@ function parseEquation(eq_str::String)
 end
 
 # simplifies series of Equations
-function solveEquation(eq::OpEquation) end
-function solveEquation(eq::GroupEquation) end
-function solveEquation(eq::EmptyEquation) end
-function solveEquation(eq::Constant) end
+function solveEquation(eq::OpEquation) return eq.op(solveEquation(eq.left), solveEquation(eq.right)) end
+function solveEquation(eq::GroupEquation) return solveEquation(eq.group) end
+function solveEquation(eq::EmptyEquation) return 0 end
+function solveEquation(eq::Constant) return eq.value end
 function solveEquation(eq::Variable) end
 
 println("Enter an equation:")
 equation = readline()
-println(parseEquation(equation))
+parsed_eq = parseEquation(equation)
+println(parsed_eq)
+println(solveEquation(parsed_eq))
