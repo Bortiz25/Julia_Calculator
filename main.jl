@@ -1,10 +1,4 @@
 abstract type Equation end
-# @enum Operation begin
-#   add
-#   sub
-#   mult
-#   div
-# end
 
 struct Constant <: Equation
   value::Float64
@@ -42,6 +36,14 @@ const operation::Dict{Char, Function} = Dict(
   '-' => function sub(x,y) return x-y end
 )
 
+# this is dumb
+const funcToPrecedence::Dict{Function, Int8} = Dict(
+  mult => 2,
+  div => 2,
+  add => 1,
+  sub => 1
+)
+
 # returns index of operation with higher precedence, returns -1 if there are no operations
 function lowestPrecedence(eq_str::String)
   lowestP = 100
@@ -72,6 +74,43 @@ function attachGroup(group::Equation, other_eq::EmptyEquation)
   return group
 end
 
+function sandwichGroup(group::Equation, left::OpEquation, right::OpEquation)
+  left_leaf = left
+  right_leaf = right
+  while left_leaf.right != EmptyEquation()
+    try 
+      left_leaf = left_leaf.right
+    catch
+      throw("Expected an OpEquation but got: $left_leaf")
+    end
+    
+  end
+  while right_leaf.left != EmptyEquation()
+    try 
+      right_leaf = right_leaf.left
+    catch
+      throw("Expected an OpEquation but got: $right_leaf", )
+    end
+  end
+  if funcToPrecedence[left_leaf.op] > funcToPrecedence[right_leaf.op]
+    return attachGroup(attachGroup(group, left, true), right)
+  else
+    return attachGroup(attachGroup(group, right), left, true)
+  end
+end
+
+function sandwichGroup(group::Equation, left::EmptyEquation, right::EmptyEquation)
+  return group
+end
+
+function sandwichGroup(group::Equation, left::OpEquation, right::EmptyEquation)
+  return attachGroup(group, left, true)
+end
+
+function sandwichGroup(group::Equation, left::EmptyEquation, right::OpEquation)
+  return attachGroup(group, right)
+end
+
 # turns string into series of Equations
 function parseEquation(eq_str::String)
   if eq_str == ""
@@ -96,8 +135,8 @@ function parseEquation(eq_str::String)
       throw("No matching close parenthesis found")
     end
 
-    left = nothing
-    right = nothing
+    left = EmptyEquation()
+    right = EmptyEquation()
     if open > 1
       left = parseEquation(eq_str[1:open-1])
     end
@@ -106,16 +145,8 @@ function parseEquation(eq_str::String)
     end
 
     inside = GroupEquation(parseEquation(eq_str[open+1:close-1]))
-    res = inside
-    if !isnothing(left)
-      res = attachGroup(res, left, true)
-    end
-    if !isnothing(right)
-      res = attachGroup(res, right)
-    end
-    return res
+    return sandwichGroup(inside, left, right)
   end
-
 
   lowestPIndex = lowestPrecedence(eq_str)
   # no operations
