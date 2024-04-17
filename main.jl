@@ -1,24 +1,24 @@
-abstract type Equation end
+abstract type Expression end
 
-struct Constant <: Equation
+struct Constant <: Expression
   value::Float64
 end
 
-struct Variable <: Equation
+struct Variable <: Expression
   value::Char
 end
 
-struct OpEquation <: Equation
-  left::Equation
+struct OpExpression <: Expression
+  left::Expression
   op::Function
-  right::Equation
+  right::Expression
 end
 
-struct GroupEquation <: Equation
-  group::Equation
+struct GroupExpression <: Expression
+  group::Expression
 end
 
-struct EmptyEquation <: Equation end
+struct EmptyExpression <: Expression end
 
 const precedence::Dict{Char, Int8} = Dict(
   '(' => 4,
@@ -62,37 +62,37 @@ function lowestPrecedence(eq_str::String)
   return index
 end
 
-# replace leftmost EmptyEquation with group
-function attachGroup(group::Equation, other_eq::OpEquation, right=false)
+# replace leftmost EmptyExpression with group
+function attachGroup(group::Expression, other_eq::OpExpression, right=false)
   if right
     recur = attachGroup(group, other_eq.right)
-    return OpEquation(other_eq.left, other_eq.op, recur)
+    return OpExpression(other_eq.left, other_eq.op, recur)
   else
     recur = attachGroup(group, other_eq.left)
-    return OpEquation(recur, other_eq.op, other_eq.right)
+    return OpExpression(recur, other_eq.op, other_eq.right)
   end
 end
 
-function attachGroup(group::Equation, other_eq::EmptyEquation)
+function attachGroup(group::Expression, other_eq::EmptyExpression)
   return group
 end
 
-function sandwichGroup(group::Equation, left::OpEquation, right::OpEquation)
+function sandwichGroup(group::Expression, left::OpExpression, right::OpExpression)
   left_leaf = left
   right_leaf = right
-  while left_leaf.right != EmptyEquation()
+  while left_leaf.right != EmptyExpression()
     try 
       left_leaf = left_leaf.right
     catch
-      throw("Expected an OpEquation but got: $left_leaf")
+      throw("Expected an OpExpression but got: $left_leaf")
     end
     
   end
-  while right_leaf.left != EmptyEquation()
+  while right_leaf.left != EmptyExpression()
     try 
       right_leaf = right_leaf.left
     catch
-      throw("Expected an OpEquation but got: $right_leaf", )
+      throw("Expected an OpExpression but got: $right_leaf", )
     end
   end
   if funcToPrecedence[left_leaf.op] > funcToPrecedence[right_leaf.op]
@@ -102,22 +102,22 @@ function sandwichGroup(group::Equation, left::OpEquation, right::OpEquation)
   end
 end
 
-function sandwichGroup(group::Equation, left::EmptyEquation, right::EmptyEquation)
+function sandwichGroup(group::Expression, left::EmptyExpression, right::EmptyExpression)
   return group
 end
 
-function sandwichGroup(group::Equation, left::OpEquation, right::EmptyEquation)
+function sandwichGroup(group::Expression, left::OpExpression, right::EmptyExpression)
   return attachGroup(group, left, true)
 end
 
-function sandwichGroup(group::Equation, left::EmptyEquation, right::OpEquation)
+function sandwichGroup(group::Expression, left::EmptyExpression, right::OpExpression)
   return attachGroup(group, right)
 end
 
-# turns string into series of Equations
-function parseEquation(eq_str::String)
+# turns string into series of Expressions
+function parseExpression(eq_str::String)
   if eq_str == ""
-    return EmptyEquation()
+    return EmptyExpression()
   end
 
   # grouping
@@ -138,16 +138,16 @@ function parseEquation(eq_str::String)
       throw("No matching close parenthesis found")
     end
 
-    left = EmptyEquation()
-    right = EmptyEquation()
+    left = EmptyExpression()
+    right = EmptyExpression()
     if open > 1
-      left = parseEquation(eq_str[1:open-1])
+      left = parseExpression(eq_str[1:open-1])
     end
     if close < length(eq_str)
-      right = parseEquation(eq_str[close+1:length(eq_str)])
+      right = parseExpression(eq_str[close+1:length(eq_str)])
     end
 
-    inside = GroupEquation(parseEquation(eq_str[open+1:close-1]))
+    inside = GroupExpression(parseExpression(eq_str[open+1:close-1]))
     return sandwichGroup(inside, left, right)
   end
 
@@ -165,20 +165,20 @@ function parseEquation(eq_str::String)
 
   op = eq_str[lowestPIndex]
   eq_op = operation[op]
-  left = parseEquation(eq_str[1:lowestPIndex-1])
-  right = parseEquation(eq_str[lowestPIndex+1:length(eq_str)])
-  return OpEquation(left, eq_op, right)
+  left = parseExpression(eq_str[1:lowestPIndex-1])
+  right = parseExpression(eq_str[lowestPIndex+1:length(eq_str)])
+  return OpExpression(left, eq_op, right)
 end
 
-# simplifies series of Equations
-function solveEquation(eq::OpEquation) return eq.op(solveEquation(eq.left), solveEquation(eq.right)) end
-function solveEquation(eq::GroupEquation) return solveEquation(eq.group) end
-function solveEquation(eq::EmptyEquation) return 0 end
-function solveEquation(eq::Constant) return eq.value end
-function solveEquation(eq::Variable) end
+# simplifies series of Expressions
+function solveExpression(eq::OpExpression) return eq.op(solveExpression(eq.left), solveExpression(eq.right)) end
+function solveExpression(eq::GroupExpression) return solveExpression(eq.group) end
+function solveExpression(eq::EmptyExpression) return 0 end
+function solveExpression(eq::Constant) return eq.value end
+function solveExpression(eq::Variable) end
 
-println("Enter an equation:")
-equation = readline()
-parsed_eq = parseEquation(equation)
+println("Enter an expression:")
+expression = readline()
+parsed_eq = parseExpression(expression)
 println(parsed_eq)
-println(solveEquation(parsed_eq))
+println(solveExpression(parsed_eq))
