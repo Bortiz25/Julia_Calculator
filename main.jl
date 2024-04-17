@@ -23,6 +23,7 @@ struct EmptyEquation <: Equation end
 const precedence::Dict{Char, Int8} = Dict(
   '(' => 4,
   '^' => 3,
+  '%' => 2,
   '*' => 2,
   '/' => 2,
   '+' => 1,
@@ -33,13 +34,15 @@ const operation::Dict{Char, Function} = Dict(
   '*' => function mult(x,y) return x*y end,
   '/' => function div(x,y) return x/y end,
   '+' => function add(x,y) return x+y end,
-  '-' => function sub(x,y) return x-y end
+  '-' => function sub(x,y) return x-y end,
+  '%' => function mod(x,y) return x%y end
 )
 
 # this is dumb
 const funcToPrecedence::Dict{Function, Int8} = Dict(
   mult => 2,
   div => 2,
+  mod => 2,
   add => 1,
   sub => 1
 )
