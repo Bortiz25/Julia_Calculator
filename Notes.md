@@ -15,12 +15,15 @@
         - '=' (depending on how we implement equations)
         - Multiplication (without *)
         - trigonometric functs, inverse trig
+    - Errors
+        - wondering how we will handle more complex errors. If someone enters a function like sine wrong, for example. Should we give a more detailed message (i.e. highlight the typo/unreadable character) or just error the parsing?
 - Settings
     - we have to either enable settings, say via a conf file, or make some choices up front
     - radians vs degrees?
     - fraction output?
     - graph formatting
-    - default log base (2, 10, or ln)
+    - default log base (2, 10)
+
 ## Messages/Requests
 
 ## Progress
