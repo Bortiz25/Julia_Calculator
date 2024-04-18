@@ -1,3 +1,6 @@
+# include("./graphing.jl")
+
+
 abstract type Expression end
 
 struct Constant <: Expression
@@ -35,7 +38,8 @@ const operation::Dict{Char, Function} = Dict(
   '/' => function div(x,y) return x/y end,
   '+' => function add(x,y) return x+y end,
   '-' => function sub(x,y) return x-y end,
-  '%' => function mod(x,y) return x%y end
+  '%' => function mod(x,y) return x%y end,
+  '^' => function pow(x,y) return x^y end
 )
 
 # this is dumb
@@ -155,8 +159,12 @@ function parseExpression(eq_str::String)
   # no operations
   if lowestPIndex < 0
     try
-      value = parse(Float64, eq_str)
-      return Constant(value)
+      if eq_str == "x"
+        return Variable('x')
+      else 
+        value = parse(Float64, eq_str)
+        return Constant(value)
+      end
     catch
       # need to support variables too
       throw("Non-operation characters must be numbers.")
@@ -171,14 +179,31 @@ function parseExpression(eq_str::String)
 end
 
 # simplifies series of Expressions
-function solveExpression(eq::OpExpression) return eq.op(solveExpression(eq.left), solveExpression(eq.right)) end
-function solveExpression(eq::GroupExpression) return solveExpression(eq.group) end
-function solveExpression(eq::EmptyExpression) return 0 end
-function solveExpression(eq::Constant) return eq.value end
-function solveExpression(eq::Variable) end
+function solveExpression(eq::OpExpression, x::Float64) return eq.op(solveExpression(eq.left, x), solveExpression(eq.right, x)) end
+function solveExpression(eq::GroupExpression, x::Float64) return solveExpression(eq.group, x) end
+function solveExpression(eq::EmptyExpression, x::Float64) return 0 end
+function solveExpression(eq::Constant, x::Float64) return eq.value end
+function solveExpression(eq::Variable, x::Float64) return x end
+
+const len = 10.0
+step = len * 0.01
+graph = false
+var_x = -1.0 * len
 
 println("Enter an expression:")
-expression = readline()
+expression = replace(readline(), ' ' => "")
+if startswith(expression, "y=")
+  graph = true
+  expression = expression[3:end]
+end
 parsed_eq = parseExpression(expression)
 println(parsed_eq)
-println(solveExpression(parsed_eq))
+if graph
+  coords::Array{Tuple{Float64, Float64}} = []
+  while var_x <= len
+    push!(coords, tuple(var_x,solveExpression(parsed_eq,var_x)))
+    global var_x += step 
+  end
+  println(coords)
+end
+println(solveExpression(parsed_eq, 0.0))
