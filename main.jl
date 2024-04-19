@@ -185,8 +185,8 @@ function solveExpression(ex::EmptyExpression, x::Float64) return 0 end
 function solveExpression(ex::Constant, x::Float64) return ex.value end
 function solveExpression(ex::Variable, x::Float64) return x end
 
-const len = 10.0
-step = len * 0.01
+const len = 8.0
+step = len / 128
 graph = false
 var_x = -1.0 * len
 
