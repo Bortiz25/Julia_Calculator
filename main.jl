@@ -188,7 +188,7 @@ function solveExpression(ex::Variable, x::Float64) return x end
 const len = 8.0
 step = len / 128
 graph = false
-var_x = -1.0 * len
+var_x = -len
 
 println("Enter an expression:")
 expression = replace(readline(), ' ' => "")
@@ -197,13 +197,17 @@ if startswith(expression, "y=")
   expression = expression[3:end]
 end
 parsed_ex = parseExpression(expression)
+# for debug
 println(parsed_ex)
+
+# for graphed equations
 if graph
   coords::Array{Tuple{Float64, Float64}} = []
   while var_x <= len
     push!(coords, tuple(var_x,solveExpression(parsed_ex,var_x)))
     global var_x += step 
   end
+  # for debug
   println(coords)
 end
 println(solveExpression(parsed_ex, 0.0))
