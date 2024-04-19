@@ -160,6 +160,7 @@ function parseExpression(ex_str::String)
   if lowestPIndex < 0
     try
       if ex_str == "x"
+        global graph = true
         return Variable('x')
       else 
         value = parse(Float64, ex_str)
@@ -191,11 +192,7 @@ graph = false
 var_x = -len
 
 println("Enter an expression:")
-expression = replace(readline(), ' ' => "")
-if startswith(expression, "y=")
-  graph = true
-  expression = expression[3:end]
-end
+expression = readline()
 parsed_ex = parseExpression(expression)
 # for debug
 println(parsed_ex)
