@@ -1,5 +1,14 @@
 # include("./graphing.jl")
 
+const base = 2.0
+const len = 8.0
+const is_round = true
+const digits = 10
+const exits = Set{String}(["exit", "exit()", "quit", "quit()", "end"])
+step = len / 128
+graph = false
+var_x = -len
+prev = 0.0
 
 abstract type Expression end
 
@@ -18,6 +27,11 @@ struct OpExpression <: Expression
 end
 
 struct GroupExpression <: Expression
+  group::Expression
+end
+
+struct FunExpression <: Expression
+  funct::Function
   group::Expression
 end
 
@@ -42,8 +56,57 @@ const operation::Dict{Char, Function} = Dict(
   '^' => function pow(x,y) return x^y end
 )
 
+const constant::Dict{String, Float64} = Dict(
+  "pi" => π,
+  "π" => π,
+  "e" => ℯ,
+  "ℯ" => ℯ,
+  "prev" => prev,
+  "ans" => prev
+)
+
+const funct::Dict{String, Function} = Dict(
+  # trig functions
+  "sin" => x -> sin(x),
+  "sine" => x -> sin(x),
+  "cos" => x -> cos(x),
+  "cosine" => x -> cos(x),
+  "tan" => x -> tan(x),
+  "tangent" => x -> tan(x),
+  "sec" => x -> sec(x),
+  "secant" => x -> sec(x),
+  "cot" => x -> cot(x),
+  "cotangent" => x -> cot(x),
+  
+  # inverse trig
+  "arcsin" => x -> asin(x),
+  "asin" => x -> asin(x),
+  "arcsine" => x -> asin(x),
+  "arccos" => x -> acos(x),
+  "acos" => x -> acos(x),
+  "arccosine" => x -> acos(x),
+  "arctan" => x -> x -> atan(x),
+  "atan" => x -> atan(x),
+  "arctangent" => x -> atan(x),
+  "arcsec" => x -> asec(x),
+  "asec" => x -> asec(x),
+  "arcsecant" => x -> asec(x),
+  "arccot" => x -> acot(x),
+  "acot" => x -> acot(x),
+  "arccotangent" => x -> acot(x),
+
+  #logarithms
+  "log" => x -> log(base, x),
+  "ln" => x -> log(x),
+
+  # roots
+  "sqrt" => x -> sqrt(x),
+  "cbrt" => x -> cbrt(x)
+)
+
 # this is dumb
 const funcToPrecedence::Dict{Function, Int8} = Dict(
+  pow => 3,
   mult => 2,
   div => 2,
   mod => 2,
@@ -120,10 +183,10 @@ end
 
 # turns string into series of Expressions
 function parseExpression(ex_str::String)
+  ex_str = String(strip(ex_str))
   if ex_str == ""
     return EmptyExpression()
   end
-
   # grouping
   open = findfirst(==('('), ex_str)
   if !isnothing(open)
@@ -144,14 +207,31 @@ function parseExpression(ex_str::String)
 
     left = EmptyExpression()
     right = EmptyExpression()
+    inside = GroupExpression(parseExpression(ex_str[open+1:close-1]))
     if open > 1
-      left = parseExpression(ex_str[1:open-1])
-    end
+      end_left = open - 1
+      while ex_str[end_left] == ' ' end_left -= 1 end
+      start_funct = end_left
+      last_funct = start_funct
+      is_funct = false
+      while start_funct != 0
+        if haskey(funct, ex_str[start_funct: end_left])
+          inside = FunExpression(funct[ex_str[start_funct:end_left]], inside)
+          is_funct = true
+          last_funct = start_funct
+        end
+        start_funct -= 1
+      end
+      if is_funct end_left = last_funct - 1 end
+      if end_left > 0
+        left = parseExpression(ex_str[1:end_left])
+      end
+    end  
+
     if close < length(ex_str)
       right = parseExpression(ex_str[close+1:length(ex_str)])
     end
 
-    inside = GroupExpression(parseExpression(ex_str[open+1:close-1]))
     return sandwichGroup(inside, left, right)
   end
 
@@ -162,10 +242,12 @@ function parseExpression(ex_str::String)
       if ex_str == "x"
         global graph = true
         return Variable('x')
-      else 
-        value = parse(Float64, ex_str)
-        return Constant(value)
       end
+      if haskey(constant, ex_str)
+        return Constant(constant[ex_str])
+      end
+      value = parse(Float64, ex_str)
+      return Constant(value)
     catch
       # need to support variables too
       throw("Non-operation characters must be numbers.")
@@ -182,36 +264,47 @@ end
 # simplifies series of Expressions
 function solveExpression(ex::OpExpression, x::Float64) return ex.op(solveExpression(ex.left, x), solveExpression(ex.right, x)) end
 function solveExpression(ex::GroupExpression, x::Float64) return solveExpression(ex.group, x) end
+function solveExpression(ex::FunExpression, x::Float64) return ex.funct(solveExpression(ex.group, x)) end
 function solveExpression(ex::EmptyExpression, x::Float64) return 0 end
 function solveExpression(ex::Constant, x::Float64) return ex.value end
 function solveExpression(ex::Variable, x::Float64) return x end
 
-const len = 8.0
-step = len / 128
-graph = false
-var_x = -len
-
-println("Enter an expression:")
-expression = readline()
-parsed_ex = parseExpression(expression)
-# for debug
-println(parsed_ex)
-
-# for graphed equations
-if graph
-  coords::Array{Tuple{Float64, Float64}} = []
-  while var_x <= len
-    push!(coords, tuple(var_x,solveExpression(parsed_ex,var_x)))
-    global var_x += step 
+function loop()
+  print("Expression: ")
+  expression = readline()
+  if in(expression, exits)
+    exit()
   end
+  # check if carrying previous answer
+  if haskey(operation, lstrip(expression)[1])
+    parsed_ex = parseExpression(string(prev) * expression)
+  else
+    parsed_ex = parseExpression(expression)
+  end
+
   # for debug
-  println(coords)
+  # println(parsed_ex)
+
+  # for graphed equations
+  if graph
+    coords::Array{Tuple{Float64, Float64}} = []
+    while var_x <= len
+      push!(coords, tuple(var_x,solveExpression(parsed_ex,var_x)))
+      global var_x += step 
+    end
+    # for debug
+    # println(coords)
+    println("See graph")
+  else
+    # for expressions, print integers properly, round floats to conceal error
+    solution = solveExpression(parsed_ex, 0.0)
+    if is_round solution = round(solution, digits = digits) end
+    if isinteger(solution)
+      println(Int64(solution))
+    else println(solution) end
+    global prev = solution
+  end
+  loop()
 end
 
-# for expressions, print integers properly
-solution = solveExpression(parsed_ex, 0.0)
-if isinteger(solution)
-  println(Int64(solution))
-else
-  println(solution)
-end
+loop()
