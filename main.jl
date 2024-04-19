@@ -210,4 +210,11 @@ if graph
   # for debug
   println(coords)
 end
-println(solveExpression(parsed_ex, 0.0))
+
+# for expressions, print integers properly
+solution = solveExpression(parsed_ex, 0.0)
+if isinteger(solution)
+  println(Int64(solution))
+else
+  println(solution)
+end
