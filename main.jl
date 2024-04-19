@@ -52,11 +52,11 @@ const funcToPrecedence::Dict{Function, Int8} = Dict(
 )
 
 # returns index of operation with higher precedence, returns -1 if there are no operations
-function lowestPrecedence(eq_str::String)
+function lowestPrecedence(ex_str::String)
   lowestP = 100
   index = -1
-  for i in range(length(eq_str), 1, step=-1)
-    c = eq_str[i]
+  for i in range(length(ex_str), 1, step=-1)
+    c = ex_str[i]
     c_precedence = get(precedence, c, 100)
     if c_precedence < lowestP
       lowestP = c_precedence
@@ -67,17 +67,17 @@ function lowestPrecedence(eq_str::String)
 end
 
 # replace leftmost EmptyExpression with group
-function attachGroup(group::Expression, other_eq::OpExpression, right=false)
+function attachGroup(group::Expression, other_ex::OpExpression, right=false)
   if right
-    recur = attachGroup(group, other_eq.right)
-    return OpExpression(other_eq.left, other_eq.op, recur)
+    recur = attachGroup(group, other_ex.right)
+    return OpExpression(other_ex.left, other_ex.op, recur)
   else
-    recur = attachGroup(group, other_eq.left)
-    return OpExpression(recur, other_eq.op, other_eq.right)
+    recur = attachGroup(group, other_ex.left)
+    return OpExpression(recur, other_ex.op, other_ex.right)
   end
 end
 
-function attachGroup(group::Expression, other_eq::EmptyExpression)
+function attachGroup(group::Expression, other_ex::EmptyExpression)
   return group
 end
 
@@ -119,22 +119,22 @@ function sandwichGroup(group::Expression, left::EmptyExpression, right::OpExpres
 end
 
 # turns string into series of Expressions
-function parseExpression(eq_str::String)
-  if eq_str == ""
+function parseExpression(ex_str::String)
+  if ex_str == ""
     return EmptyExpression()
   end
 
   # grouping
-  open = findfirst(==('('), eq_str)
+  open = findfirst(==('('), ex_str)
   if !isnothing(open)
     num_open = 1
     close = open
-    while num_open > 0 && close < length(eq_str)
+    while num_open > 0 && close < length(ex_str)
       close += 1
-      if eq_str[close] == '('
+      if ex_str[close] == '('
         num_open += 1
       end
-      if eq_str[close] == ')'
+      if ex_str[close] == ')'
         num_open -= 1
       end
     end
@@ -145,24 +145,24 @@ function parseExpression(eq_str::String)
     left = EmptyExpression()
     right = EmptyExpression()
     if open > 1
-      left = parseExpression(eq_str[1:open-1])
+      left = parseExpression(ex_str[1:open-1])
     end
-    if close < length(eq_str)
-      right = parseExpression(eq_str[close+1:length(eq_str)])
+    if close < length(ex_str)
+      right = parseExpression(ex_str[close+1:length(ex_str)])
     end
 
-    inside = GroupExpression(parseExpression(eq_str[open+1:close-1]))
+    inside = GroupExpression(parseExpression(ex_str[open+1:close-1]))
     return sandwichGroup(inside, left, right)
   end
 
-  lowestPIndex = lowestPrecedence(eq_str)
+  lowestPIndex = lowestPrecedence(ex_str)
   # no operations
   if lowestPIndex < 0
     try
-      if eq_str == "x"
+      if ex_str == "x"
         return Variable('x')
       else 
-        value = parse(Float64, eq_str)
+        value = parse(Float64, ex_str)
         return Constant(value)
       end
     catch
@@ -171,19 +171,19 @@ function parseExpression(eq_str::String)
     end
   end
 
-  op = eq_str[lowestPIndex]
-  eq_op = operation[op]
-  left = parseExpression(eq_str[1:lowestPIndex-1])
-  right = parseExpression(eq_str[lowestPIndex+1:length(eq_str)])
-  return OpExpression(left, eq_op, right)
+  op = ex_str[lowestPIndex]
+  ex_op = operation[op]
+  left = parseExpression(ex_str[1:lowestPIndex-1])
+  right = parseExpression(ex_str[lowestPIndex+1:length(ex_str)])
+  return OpExpression(left, ex_op, right)
 end
 
 # simplifies series of Expressions
-function solveExpression(eq::OpExpression, x::Float64) return eq.op(solveExpression(eq.left, x), solveExpression(eq.right, x)) end
-function solveExpression(eq::GroupExpression, x::Float64) return solveExpression(eq.group, x) end
-function solveExpression(eq::EmptyExpression, x::Float64) return 0 end
-function solveExpression(eq::Constant, x::Float64) return eq.value end
-function solveExpression(eq::Variable, x::Float64) return x end
+function solveExpression(ex::OpExpression, x::Float64) return ex.op(solveExpression(ex.left, x), solveExpression(ex.right, x)) end
+function solveExpression(ex::GroupExpression, x::Float64) return solveExpression(ex.group, x) end
+function solveExpression(ex::EmptyExpression, x::Float64) return 0 end
+function solveExpression(ex::Constant, x::Float64) return ex.value end
+function solveExpression(ex::Variable, x::Float64) return x end
 
 const len = 10.0
 step = len * 0.01
@@ -196,14 +196,14 @@ if startswith(expression, "y=")
   graph = true
   expression = expression[3:end]
 end
-parsed_eq = parseExpression(expression)
-println(parsed_eq)
+parsed_ex = parseExpression(expression)
+println(parsed_ex)
 if graph
   coords::Array{Tuple{Float64, Float64}} = []
   while var_x <= len
-    push!(coords, tuple(var_x,solveExpression(parsed_eq,var_x)))
+    push!(coords, tuple(var_x,solveExpression(parsed_ex,var_x)))
     global var_x += step 
   end
   println(coords)
 end
-println(solveExpression(parsed_eq, 0.0))
+println(solveExpression(parsed_ex, 0.0))
