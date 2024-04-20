@@ -1,14 +1,20 @@
-# include("./graphing.jl")
+include("./graphing.jl")
 
 const base = 2.0
 const len = 8.0
 const is_round = true
 const digits = 10
 const exits = Set{String}(["exit", "exit()", "quit", "quit()", "end"])
-step = len / 128
-graph = false
-var_x = -len
+const step = len / 128
 prev = 0.0
+
+# reset per-run variables
+function reset()
+  global graph = false
+  global var_x = -len
+end
+
+reset()
 
 abstract type Expression end
 
@@ -272,12 +278,15 @@ function solveExpression(ex::Variable, x::Float64) return x end
 function loop()
   print("Expression: ")
   expression = readline()
+
+  # pre-parsing, unnecessary if parseExpression called recursively
   if in(expression, exits)
     exit()
   end
-  # check if carrying previous answer
-  if haskey(operation, lstrip(expression)[1])
-    parsed_ex = parseExpression(string(prev) * expression)
+  # check if carrying previous answer ("" check is clunky but more efficient than checking starting operation in recursive)
+  stripped_exp = lstrip(expression)
+  if stripped_exp != "" && haskey(operation, stripped_exp[1])
+    parsed_ex = parseExpression("(" * string(prev) * ")" * expression)
   else
     parsed_ex = parseExpression(expression)
   end
@@ -287,13 +296,14 @@ function loop()
 
   # for graphed equations
   if graph
-    coords::Array{Tuple{Float64, Float64}} = []
+    x_vals = Vector{Float64}([])
+    y_vals = Vector{Float64}([])
     while var_x <= len
-      push!(coords, tuple(var_x,solveExpression(parsed_ex,var_x)))
+      push!(x_vals, var_x)
+      push!(y_vals, solveExpression(parsed_ex,var_x))
       global var_x += step 
     end
-    # for debug
-    # println(coords)
+    plotGraph(Plotter(x_vals,y_vals))
     println("See graph")
   else
     # for expressions, print integers properly, round floats to conceal error
@@ -304,6 +314,7 @@ function loop()
     else println(solution) end
     global prev = solution
   end
+  reset()
   loop()
 end
 
