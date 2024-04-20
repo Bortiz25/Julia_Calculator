@@ -13,8 +13,10 @@ struct Plotter
     y_vals::Vector{Float64}
 end
 
-function plotGraph(input::Plotter) 
-    gui(plot(input.x_vals, input.y_vals))
+function plotGraph(input::Plotter)
+    # use display instead of gui to see in VSCODE (when available), but GUI is interactive
+    # gui(plot(input.x_vals, input.y_vals))
+    display(plot(input.x_vals, input.y_vals))
 end 
 
 # x = range(-100.0,100.0)
