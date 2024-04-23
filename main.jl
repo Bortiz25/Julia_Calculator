@@ -62,13 +62,13 @@ const operation::Dict{Char, Function} = Dict(
   '^' => function pow(x,y) return x^y end
 )
 
-const constant::Dict{String, Float64} = Dict(
-  "pi" => π,
-  "π" => π,
-  "e" => ℯ,
-  "ℯ" => ℯ,
-  "prev" => prev,
-  "ans" => prev
+const constant::Dict{String, Function} = Dict(
+  "pi" => () -> π,
+  "π" => () -> π,
+  "e" => () -> ℯ,
+  "ℯ" => () -> ℯ,
+  "prev" =>  () -> prev,
+  "ans" => () -> prev
 )
 
 const funct::Dict{String, Function} = Dict(
@@ -166,7 +166,7 @@ function getLeaf(exp::OpExpression, right=false)
 end
 
 function getLeaf(exp::EmptyExpression, right=false) return exp end
-function getLeaf(exp::GroupExpression, right=false) 
+function getLeaf(exp::Union{GroupExpression, FunExpression}, right=false) 
   if right
     return OpExpression(exp, mult, EmptyExpression()) 
   else
@@ -184,7 +184,7 @@ function sandwichGroup(group::Expression, left::OpExpression, right::OpExpressio
   end
 end
 
-function sandwichGroup(group::Expression, left::OpExpression, right::Union{GroupExpression, Constant})
+function sandwichGroup(group::Expression, left::OpExpression, right::Union{GroupExpression, Constant, FunExpression})
   left_leaf = getLeaf(left, true)
   if funcToPrecedence[mult] > funcToPrecedence[left_leaf.op]
     return attachGroup(OpExpression(group, mult, right), left, true)
@@ -206,7 +206,7 @@ function sandwichGroup(group::Expression, left::Constant, right::OpExpression)
   end
 end
 
-function sandwichGroup(group::Expression, left::Constant, right::Union{GroupExpression, Constant})
+function sandwichGroup(group::Expression, left::Constant, right::Union{GroupExpression, Constant, FunExpression})
   return OpExpression(OpExpression(left, mult, group), mult, right)
 end
 
@@ -218,14 +218,14 @@ function sandwichGroup(group::Expression, left::EmptyExpression, right::OpExpres
   return attachGroup(group, right)
 end
 
-function sandwichGroup(group::Expression, left::EmptyExpression, right::Union{GroupExpression, Constant})
+function sandwichGroup(group::Expression, left::EmptyExpression, right::Union{GroupExpression, Constant, FunExpression})
   return OpExpression(group, mult, right)
 end
 
 function sandwichGroup(group::Expression, left::EmptyExpression, right::EmptyExpression) return group end
 
 # turns string into series of Expressions
-function parseExpression(ex_str::String)
+function parseExpression(ex_str::AbstractString)
   ex_str = String(strip(ex_str))
   if ex_str == ""
     return EmptyExpression()
@@ -281,21 +281,49 @@ function parseExpression(ex_str::String)
   lowestPIndex = lowestPrecedence(ex_str)
   # no operations
   if lowestPIndex < 0
-    try
-      if ex_str == "x"
-        global graph = true
-        return Variable('x')
-      end
-      if haskey(constant, ex_str)
-        return Constant(constant[ex_str])
-      end
-      value = parse(Float64, ex_str)
-      return Constant(value)
-    catch
-      # need to support variables too
-      throw("Non-operation characters must be numbers.")
+    index = 1
+    ex_str = strip(ex_str)
+    while index <= length(ex_str) && (isdigit(ex_str[index]) || ex_str[index] == '.')
+      index += 1
     end
-  end
+    if index > 1
+      num = parse(Float64, ex_str[1:index-1])
+      if index > length(ex_str)
+        return Constant(num)
+      end
+      recur = parseExpression(ex_str[index:end])
+      if recur isa EmptyExpression
+        return Constant(num)
+      else
+        return OpExpression(Constant(num), mult, recur)
+      end
+    end
+
+    while index <= length(ex_str) && !(isdigit(ex_str[index]) || ex_str[index] == '.' || ex_str[index] == ' ')
+      index += 1
+    end
+    if index > 1
+      if ex_str[1:index-1] == "x"
+        global graph = true
+        recur = parseExpression(ex_str[index:end])
+        if recur isa EmptyExpression
+          return Variable('x')
+        else
+          return OpExpression(Variable('x'), mult, recur)
+        end
+        
+      end
+      if haskey(constant, ex_str[1:index-1])
+        recur = parseExpression(ex_str[index:end])
+        if recur isa EmptyExpression
+          return Constant(constant[ex_str]())
+        else
+          return OpExpression(Constant(constant[ex_str]()), mult, recur)
+        end
+      end 
+    end
+    throw("invalid string")
+  end    
 
   op = ex_str[lowestPIndex]
   ex_op = operation[op]
