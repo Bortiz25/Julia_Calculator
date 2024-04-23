@@ -150,24 +150,33 @@ function attachGroup(group::Expression, other_ex::EmptyExpression)
   return group
 end
 
+function getLeaf(exp::OpExpression, right=false)
+  child = EmptyExpression
+  if right
+    child = exp.right
+  else
+    child = exp.left
+  end
+  leaf = getLeaf(child, right)
+  if leaf == EmptyExpression()
+    return exp
+  else
+    return leaf
+  end
+end
+
+function getLeaf(exp::EmptyExpression, right=false) return exp end
+function getLeaf(exp::GroupExpression, right=false) 
+  if right
+    return OpExpression(exp, mult, EmptyExpression()) 
+  else
+    return OpExpression(EmptyExpression(), mult, exp) 
+  end
+end
+
 function sandwichGroup(group::Expression, left::OpExpression, right::OpExpression)
-  left_leaf = left
-  right_leaf = right
-  while left_leaf.right != EmptyExpression()
-    try 
-      left_leaf = left_leaf.right
-    catch
-      throw("Expected an OpExpression but got: $left_leaf")
-    end
-    
-  end
-  while right_leaf.left != EmptyExpression()
-    try 
-      right_leaf = right_leaf.left
-    catch
-      throw("Expected an OpExpression but got: $right_leaf", )
-    end
-  end
+  left_leaf = getLeaf(left, true)
+  right_leaf = getLeaf(right)
   if funcToPrecedence[left_leaf.op] > funcToPrecedence[right_leaf.op]
     return attachGroup(attachGroup(group, left, true), right)
   else
@@ -175,17 +184,45 @@ function sandwichGroup(group::Expression, left::OpExpression, right::OpExpressio
   end
 end
 
-function sandwichGroup(group::Expression, left::EmptyExpression, right::EmptyExpression)
-  return group
+function sandwichGroup(group::Expression, left::OpExpression, right::Union{GroupExpression, Constant})
+  left_leaf = getLeaf(left, true)
+  if funcToPrecedence[mult] > funcToPrecedence[left_leaf.op]
+    return attachGroup(OpExpression(group, mult, right), left, true)
+  else
+    return OpExpression(attachGroup(group, left, true), mult, right)
+  end
 end
 
 function sandwichGroup(group::Expression, left::OpExpression, right::EmptyExpression)
   return attachGroup(group, left, true)
 end
 
+function sandwichGroup(group::Expression, left::Constant, right::OpExpression)
+  right_leaf = getLeaf(right)
+  if funcToPrecedence[mult] > funcToPrecedence[right_leaf.op]
+    return attachGroup(OpExpression(left, mult, group), right)
+  else
+    return OpExpression(left, mult, attachGroup(group, right))
+  end
+end
+
+function sandwichGroup(group::Expression, left::Constant, right::Union{GroupExpression, Constant})
+  return OpExpression(OpExpression(left, mult, group), mult, right)
+end
+
+function sandwichGroup(group::Expression, left::Constant, right::EmptyExpression)
+  return OpExpression(left, mult, group)
+end
+
 function sandwichGroup(group::Expression, left::EmptyExpression, right::OpExpression)
   return attachGroup(group, right)
 end
+
+function sandwichGroup(group::Expression, left::EmptyExpression, right::Union{GroupExpression, Constant})
+  return OpExpression(group, mult, right)
+end
+
+function sandwichGroup(group::Expression, left::EmptyExpression, right::EmptyExpression) return group end
 
 # turns string into series of Expressions
 function parseExpression(ex_str::String)
